@@ -227,6 +227,7 @@ class OrderFulfill(BaseMutation):
 
     @staticmethod
     def get_gift_card_lines(lines_ids):
+        # update - use line.is_gift_card()
         _, pks = resolve_global_ids_to_primary_keys(
             lines_ids, OrderLine, raise_error=True
         )
@@ -249,15 +250,18 @@ class OrderFulfill(BaseMutation):
         gift_card_lines = cleaned_input["gift_card_lines"]
         quantities = cleaned_input["quantities"]
 
-        gift_cards_create(
-            order,
-            gift_card_lines,
-            quantities,
-            context.site.settings,
-            user,
-            app,
-            manager,
-        )
+        approved = info.context.site.settings.fulfillment_auto_approve
+
+        if approved:
+            gift_cards_create(
+                order,
+                gift_card_lines,
+                quantities,
+                context.site.settings,
+                user,
+                app,
+                manager,
+            )
 
         try:
             fulfillments = create_fulfillments(
@@ -267,7 +271,7 @@ class OrderFulfill(BaseMutation):
                 dict(lines_for_warehouses),
                 manager,
                 notify_customer,
-                approved=info.context.site.settings.fulfillment_auto_approve,
+                approved=approved,
             )
         except InsufficientStock as exc:
             errors = prepare_insufficient_stock_order_validation_errors(exc)
@@ -458,6 +462,7 @@ class FulfillmentApprove(BaseMutation):
             info.context.user,
             info.context.app,
             info.context.plugins,
+            info.context.site.settings,
             notify_customer=data["notify_customer"],
         )
         order.refresh_from_db(fields=["status"])
